@@ -84,7 +84,7 @@ jam() {
       [[ -n "$now_playing" ]] && now_playing=$(basename "$now_playing")
 
       echo "🎛️ Jam Mode Status:"
-      echo "  🔁 Loop:    $loop_state  →  $([[ "$loop_state" == "on" ]] && echo 'Same jam, same vibe' || echo 'New tune every time')"
+      echo "  🔁 Loop:    $loop_state  →  $([[ "$loop_state" == "on" ]] && echo 'Repeat playlist' || echo 'Stop at end of playlist')"
       echo "  🔀 Shuffle: $shuffle_state  →  $([[ "$shuffle_state" == "on" ]] && echo 'We roll the dice' || echo 'Stickin’ to the script')"
       echo "  🎵 Tracks in Playlist: $song_count"
       [[ -n "$now_playing" ]] && echo "  ▶️ Now Playing: $now_playing"
