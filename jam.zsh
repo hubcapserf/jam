@@ -1,6 +1,6 @@
 ### TO JAM MUSIC FROM COMMAND LINE AND BUILD A PLAYLIST
 jam() {
-  local music_dir="/mnt/c/Users/hubca/Music"
+  local music_dir="<Users file director>"
   local subcmd=$1
   local status_file
   local playlist_file="/tmp/jam-playlist-tracks"
