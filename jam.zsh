@@ -126,6 +126,27 @@ jam() {
       fi
       ;;
 
+    help)
+      echo "🎵 Jam – Terminal Music Playlist Launcher"
+      echo
+      echo "Usage: jam [command]"
+      echo
+      echo "Commands:"
+      echo "  jam              Launch fzf to select and queue tracks"
+      echo "  jam status       Show loop/shuffle status and now playing"
+      echo "  jam clear        Clear the playlist and stop playback"
+      echo "  jam play         Start playback (mocp -p)"
+      echo "  jam stop         Stop playback (mocp -s)"
+      echo "  jam pause        Pause or resume playback"
+      echo "  jam next         Skip to the next track"
+      echo "  jam prev         Rewind to the previous track"
+      echo "  jam loop         Toggle loop mode"
+      echo "  jam shuffle      Toggle shuffle mode"
+      echo "  jam random       Queue and optionally start a random track"
+      echo "  jam save         Save the current playlist with a timestamp"
+      echo "  jam help         Show this help message"
+      ;;
+
     *)
       if ! mocp -Q %state > /dev/null 2>&1; then
         mocp -S
