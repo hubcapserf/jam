@@ -135,7 +135,6 @@ jam() {
       echo "  jam              Launch fzf to select and queue tracks"
       echo "  jam status       Show loop/shuffle status and now playing"
       echo "  jam clear        Clear the playlist and stop playback"
-      echo "  jam play         Start playback (mocp -p)"
       echo "  jam stop         Stop playback (mocp -s)"
       echo "  jam pause        Pause or resume playback"
       echo "  jam next         Skip to the next track"
