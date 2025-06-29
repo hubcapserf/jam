@@ -1,6 +1,7 @@
 ### TO JAM MUSIC FROM COMMAND LINE AND BUILD A PLAYLIST
 jam() {
-  local music_dir="<Users file director>"
+  local music_dir="${JAM_MUSIC_DIR:-<Your music directory>}"
+>>>>>>> 2a1cca9 (Use JAM_MUSIC_DIR env var and update INSTALL.md)
   local subcmd=$1
   local status_file
   local playlist_file="/tmp/jam-playlist-tracks"
