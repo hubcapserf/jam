@@ -7,8 +7,33 @@ jam() {
 
   case "$subcmd" in
     stop)
+      echo "$(mocp -Q %file 2>/dev/null)" > /tmp/jam-last-track
       mocp -s
       echo "⏹️ MOC server stopped. Silence... for now."
+      ;;
+
+     play)
+      state=$(mocp -Q %state 2>/dev/null)
+      last_track_file="/tmp/jam-last-track"
+
+      if [[ "$state" == "STOP" && -f "$last_track_file" ]]; then
+        track=$(<"$last_track_file")
+        if [[ -f "$track" ]]; then
+          mocp -c                  # Clear current playlist
+          mocp -a "$track"         # Add last track back
+          mocp -r                  # Rewind to beginning
+          mocp -p                  # Play
+          echo "🔁 Restarting the last tune: $(basename "$track")"
+        else
+          echo "⚠️ Couldn’t find the previous track file. Queue something fresh?"
+        fi
+      elif [[ "$state" == "PAUSE" ]]; then
+        echo "⏸️ Currently paused. Use 'jam pause' to resume without rewinding."
+      elif [[ "$state" == "PLAY" ]]; then
+        echo "🎧 Already mid-vibe. No need to restart."
+      else
+        echo "⚠️ No recent track found. Let’s jam something new."
+      fi
       ;;
 
     pause)
@@ -136,6 +161,7 @@ jam() {
       echo "  jam status       Show loop/shuffle status and now playing"
       echo "  jam clear        Clear the playlist and stop playback"
       echo "  jam stop         Stop playback (mocp -s)"
+      echo "  jam play         Playback from beginning of current track"
       echo "  jam pause        Pause or resume playback"
       echo "  jam next         Skip to the next track"
       echo "  jam prev         Rewind to the previous track"
