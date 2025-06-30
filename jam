@@ -1,4 +1,7 @@
 ### TO JAM MUSIC FROM COMMAND LINE AND BUILD A PLAYLIST
+
+[[ -f "$HOME/.jamrc" ]] && source "$HOME/.jamrc"
+
 jam() {
   local music_dir="${JAM_MUSIC_DIR:-<Your music directory>}"
   local subcmd=$1
@@ -111,7 +114,7 @@ jam() {
       echo "🎛️ Jam Mode Status:"
       echo "  🔁 Loop:    $loop_state  →  $([[ "$loop_state" == "on" ]] && echo 'Repeat playlist' || echo 'Stop at end of playlist')"
       echo "  🔀 Shuffle: $shuffle_state  →  $([[ "$shuffle_state" == "on" ]] && echo 'We roll the dice' || echo 'Stickin’ to the script')"
-      echo "  🎵 Tracks in Playlist: $song_count"
+      echo "  🎵 Tracks added this jam session: $song_count"
       [[ -n "$now_playing" ]] && echo "  ▶️ Now Playing: $now_playing"
       ;;
 
