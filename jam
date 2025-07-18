@@ -1,0 +1,811 @@
+    #!/usr/bin/env zsh
+    
+    # 🎵 Jam — Command Line Music Cue System for MOC
+        
+    [ -n "$ZSH_VERSION" ] || exec zsh "$0" "$@"
+   
+    export LANG=en_US.UTF-8
+    export LC_ALL=en_US.UTF-8
+
+
+    JAM_CACHE="${JAM_CACHE:-$HOME/.cache/jam}"
+
+    setopt ksh_arrays
+    setopt extended_glob
+
+    cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/jam"
+    loop_status_file="$cache_dir/loop-status"
+    mkdir -p "$cache_dir"
+    playlist_file="$HOME/.cache/jam/playlist-tracks"
+    current_track_file="$cache_dir/playlist-current"
+
+    # Text colors
+    RED=$'\e[31m'
+    GREEN=$'\e[32m'
+    YELLOW=$'\e[33m'
+    BLUE=$'\e[34m'
+    LIGHT_BLUE=$'\e[94m'
+    MAGENTA=$'\e[35m'
+    PINK=$'\e[95m'
+    CYAN=$'\e[36m'
+    WHITE=$'\e[97m'
+    BLACK=$'\e[30m'
+    GRAY=$'\e[90m'
+
+    # Text styles
+    BOLD=$'\e[1m'
+    DIM=$'\e[2m'
+    UNDERLINE=$'\e[4m'
+    REVERSE=$'\e[7m'
+
+    # Reset
+    RESET=$'\e[0m'
+
+    JAM_TAG="[${BLUE}jam${RESET}]"
+        
+    jam() {
+      echo "${JAM_TAG} 🎵"
+    
+      # Set defaults, allow overrides
+      local music_dir="${JAM_MUSIC_DIR:-$HOME/Music}"
+      local cache_dir="${JAM_CACHE:-$HOME/.cache/jam}"
+      mkdir -p "$cache_dir"
+      
+      local status_file="$cache_dir/loop-status"
+      local playlist_file="$cache_dir/playlist-tracks"
+              
+      # Ensure playlist file exists
+      [[ -f "$playlist_file" ]] || touch "$playlist_file"
+
+ 
+      # Validate music directory
+      if [[ ! -d "$music_dir" ]]; then
+          echo "❌ Music directory not found: $music_dir"
+          echo "   Set JAM_MUSIC_DIR or create $music_dir"
+          return 1
+      fi
+
+      local subcmd=$1
+      
+      rewind() {
+        mocp --seek -100000
+        echo " ⏮  Rewound to beginning of track."
+      }
+
+      # your subcommands go here
+      case "$subcmd" in
+
+    on)
+      # Load jamrc config if it exists
+      [[ -f ~/.jamrc ]] && source ~/.jamrc
+
+      # Print startup message
+      [[ -n "$startup_message" ]] && echo -e "$startup_message"
+
+      echo "🎛  Checking MOC server status..."
+      if pgrep -x mocp >/dev/null; then
+        echo "✅ MOC server already running."
+      else
+        mocp -S
+        echo "🚀 MOC server started."
+      fi
+
+      echo "🔄 Resetting session to default state..."
+      "$0" sync --quiet
+
+      # Read current state from cache
+      loop_status=$(<"$JAM_CACHE/loop-status")
+      shuffle_status=$(<"$JAM_CACHE/shuffle-status")
+
+      # Print loop/shuffle status with glyphs and color
+      loop_color=$([[ "$loop_status" == "on" ]] && echo "$GREEN" || echo "$RED")
+      shuffle_color=$([[ "$shuffle_status" == "on" ]] && echo "$GREEN" || echo "$RED")
+
+      echo -e "🔁 Loop: ${loop_color}${loop_status}${RESET}"
+      echo -e "🔀 Shuffle: ${shuffle_color}${shuffle_status}${RESET}"
+      ;;
+      
+    off)
+      mocp -x
+      echo "🛑 MOC server stopped."
+      ;;
+
+    stop)
+      cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/jam"
+      local stop_state_file="$cache_dir/stop-state"
+      [[ -f "$stop_state_file" ]] || echo "active" > "$stop_state_file"
+
+      # Check if MOC is currently playing
+      if mocp -i | grep -q '^State: PLAY'; then
+          # Save current track
+          current_track=$(mocp -i | grep '^File:' | cut -d' ' -f2-)
+          if [[ -n "$current_track" ]]; then
+              echo "$current_track" > "$cache_dir/playlist-current"
+              echo "💾 Saved current track in cache: ${CYAN}$(basename "$current_track")${RESET}"
+          fi
+
+          # Stop playback
+          mocp --stop
+          echo " ⏹️  Playback stopped. MOC server still running."
+          echo "stopped" > "$stop_state_file"
+
+      else
+          # Resume saved track from beginning
+          if [[ -f "$cache_dir/playlist-current" ]]; then
+              saved_track=$(<"$cache_dir/playlist-current")
+              if [[ -f "$saved_track" ]]; then
+                  mocp -c
+                  mocp -a "$saved_track"
+                  mocp -p
+                  echo " ⏯️ Replaying saved track: ${CYAN}$(basename "$saved_track")${RESET}"
+                  echo "active" > "$stop_state_file"
+              else
+                  echo "⚠️  Saved track not found: $saved_track"
+              fi
+          else
+              echo "⚠️  No saved track to resume."
+          fi
+      fi
+      ;;
+                
+    status)
+      echo "🎛️ Jam Mode Status:"
+      JAM_CACHE="${JAM_CACHE:-$HOME/.cache/jam}"
+      tput cup 0 0
+      tput ed
+
+      pid_file="$JAM_CACHE/monitor.pid"
+      playlist_file="$JAM_CACHE/playlist-tracks"
+
+      # Define colors
+      RED=$'\e[31m'; GREEN=$'\e[32m'; BLUE=$'\e[34m'
+      PINK=$'\e[35m'; CYAN=$'\e[36m'; DIM=$'\e[2m'; RESET=$'\e[0m'
+
+      # Loop status
+      if [[ -f "$JAM_CACHE/loop-status" && "$(cat "$JAM_CACHE/loop-status")" == "on" ]]; then
+          loop_status="${GREEN}on${RESET}"
+      else
+          loop_status="${RED}off${RESET}  →  Stop at end"
+      fi
+
+      # Shuffle status
+      if [[ -f "$JAM_CACHE/shuffle-status" && "$(cat "$JAM_CACHE/shuffle-status")" == "on" ]]; then
+          shuffle_status="${GREEN}on${RESET}  →  Shuffle playlist"
+      else
+          shuffle_status="${RED}off${RESET}"
+      fi
+
+      # Track count
+      if [[ -f "$playlist_file" ]]; then
+        song_count=$(grep -c . "$playlist_file")
+      else
+        song_count=0
+      fi
+
+      # Now playing
+      now_playing=$(mocp -Q %file 2>/dev/null)
+      now_playing=${now_playing:+$(basename "$now_playing")}
+      now_playing=${now_playing:-"${DIM}[stopped]${RESET}"}
+
+      # Print status
+      echo "🎛 ${BLUE}Jam${RESET} Mode Status:"
+      echo -e "  🔁 Loop:    $loop_status"
+      echo -e "  🔀 Shuffle: $shuffle_status"
+      echo -e "  ⏯️  Now Playing: ${CYAN}$now_playing${RESET}"
+      echo -e "  🎵 Tracks in ${BLUE}jam${RESET} cache: ${PINK}$song_count${RESET}"
+      echo "✅ Groove check complete."
+      ;;
+      
+    monitor)
+      stty -echoctl
+      tput civis
+      printf "\033[?25l"
+      trap 'printf "\033[?25h"; tput cnorm; stty echoctl; return' INT
+
+      clear
+      printf "\033[H"
+ 
+  
+      while true; do
+        JAM_CACHE="$HOME/.cache/jam"
+        mkdir -p "$JAM_CACHE"
+        playlist_file="$JAM_CACHE/playlist-tracks"
+
+        RED=$'\e[31m'; GREEN=$'\e[32m'; PINK=$'\e[35m'
+        CYAN=$'\e[36m'; DIM=$'\e[2m'; RESET=$'\e[0m'
+
+        loop_status="${RED}off${RESET}  →  Stop at end"
+        [[ -f "$JAM_CACHE/loop-status" && $(<"$JAM_CACHE/loop-status") == "on" ]] && \
+          loop_status="${GREEN}on${RESET}"
+
+        shuffle_status="${RED}off${RESET}"
+        [[ -f "$JAM_CACHE/shuffle-status" && $(<"$JAM_CACHE/shuffle-status") == "on" ]] && \
+          shuffle_status="${GREEN}on${RESET}  →  Shuffle playlist"
+
+        now_playing=$(mocp -Q %file 2>/dev/null)
+        now_playing=${now_playing:+$(basename "$now_playing")}
+        now_playing=${now_playing:-"${DIM}[stopped]${RESET}"}
+
+        song_count=0
+        [[ -f "$playlist_file" ]] && song_count=$(grep -c . "$playlist_file")
+
+        current_time=$(date +"%I:%M:%S %p")
+
+        # Move cursor to top instead of clearing screen
+        printf "\033[H"
+        
+        echo "🎛️  ${BLUE}Jam${RESET} Mode Monitor:"
+        echo -e "  🔁 Loop:    $loop_status"
+        echo -e "  🔀 Shuffle: $shuffle_status"
+        echo -e "  ⏯️  Now Playing: ${CYAN}${now_playing}${RESET}    "
+        echo -e "  🎵 Tracks in jam cache: ${PINK}$song_count${RESET}"
+        echo "✅ Live status monitor $current_time"
+
+        sleep 1
+      done
+      
+      tput cnorm
+      ;;
+                       
+    play)
+      cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/jam"
+      current_track_file="$cache_dir/playlist-current"
+
+      mkdir -p "$cache_dir"
+
+      mocp -S 2>/dev/null
+
+      echo " ⏯️  Starting from top. Turn the crank. 🎶"
+      mocp --play
+  
+      sleep 0.5  # Give mocp a moment to start
+
+      current_track=$(mocp -Q %file 2>/dev/null)
+      if [[ -n "$current_track" ]]; then
+          echo "$current_track" > "$current_track_file"
+      else
+          echo "⚠️  Could not detect current track."
+      fi
+      ;;
+
+    grace)
+      GRACE_STATE="$JAM_CACHE/grace.state"
+      GRACE_TRACK="$JAM_CACHE/grace.track"
+
+      if [[ -f "$GRACE_STATE" && "$(cat "$GRACE_STATE")" == "paused" ]]; then
+        mocp --unpause
+        sleep 0.2
+        rewind > /dev/null
+        saved_track=$(cat "$GRACE_TRACK")
+        echo -e " 🕊️  Grace and Peace — resuming from: ${CYAN}$(basename "$saved_track")${RESET}"
+        rm -f "$GRACE_STATE" "$GRACE_TRACK"
+
+      else
+        current_track=$(mocp -Q %file 2>/dev/null)
+        if [[ -n "$current_track" ]]; then
+          echo "paused" > "$GRACE_STATE"
+          echo "$current_track" > "$GRACE_TRACK"
+          mocp --pause
+          echo -e " 🕊️  Grace and Peace — stopped on: ${CYAN}$(basename "$current_track")${RESET}"
+        else
+          echo -e "⚠️  Grace can’t pause — no track is currently playing."
+        fi
+      fi
+      ;;
+
+    quit)
+      echo "🛑 Stopping playback."
+      mocp --stop 2>/dev/null
+
+      sleep 0.2  # Give mocp a breath to process
+
+      echo " ⏹️  Playback stopped. Playlist ready to resume."
+      ;;
+      
+    pause)
+      state=$(mocp -Q %state 2>/dev/null)
+      if [[ "$state" == "PLAY" ]]; then
+        echo " ⏸️  Pausing..."
+        mocp -P
+      elif [[ "$state" == "PAUSE" ]]; then
+        echo " ⏯️  Resuming..."
+        mocp -U
+      else
+        echo "⚠️  No track to pause or resume."
+      fi
+      ;;
+
+    next)
+      mocp -f
+      sleep 0.2
+      
+      echo " ⏭️  Skipped to the next tune."
+      current_track=$(mocp -Q %file 2>/dev/null)
+      current_track=${current_track:+$(basename "$current_track")}
+      echo -e "🎶  Loaded: ${CYAN}${current_track}${RESET}"
+      ;;
+
+    prev)
+      mocp -r
+      sleep 0.2
+      
+      echo " ⏮️  Back to the previous tune."
+      current_track=$(mocp -Q %file 2>/dev/null)
+      current_track=${current_track:+$(basename "$current_track")}
+      echo -e "🎶  Loaded: ${CYAN}${current_track}${RESET}"      
+      ;;
+      
+    rewind)
+      mocp --seek -100000
+      echo " ⏮️  Rewound to beginning of track."
+      ;;  
+ 
+    loop)
+      mocp -t repeat
+
+      if [[ -f "$loop_status_file" && $(<"$loop_status_file") == "on" ]]; then
+        echo "off" > "$loop_status_file"
+        echo "🔁 Loop mode toggled: ${RED}off${RESET}."
+      else
+        echo "on" > "$loop_status_file"
+        echo "🔁 Loop mode toggled: ${GREEN}on${RESET}."
+      fi
+      ;;
+
+    shuffle)
+      mocp -t shuffle
+      shuffle_status_file="$cache_dir/shuffle-status"
+
+      if [[ -f "$shuffle_status_file" && $(<"$shuffle_status_file") == "on" ]]; then
+        echo "🔀 Shuffle toggled. ${RED}off${RESET}."
+        echo "off" > "$shuffle_status_file"
+      else
+        echo "🔀 Shuffle toggled. ${GREEN}on${RESET}."
+        echo "on" > "$shuffle_status_file"
+      fi
+      ;;
+      
+    volume)
+      case "$2" in
+        up)
+          mocp --volume +5
+          echo "🔊 Volume increased by 5%"
+          ;;
+        down)
+          mocp --volume -5
+          echo "🔉 Volume decreased by 5%"
+          ;;
+        *)
+          echo "⚠️ Use: jam volume up | jam volume down"
+          ;;
+      esac
+      ;;
+
+    add)
+      # Force loop mode ON
+      mocp -o repeat
+      echo -e "🔁 Loop mode status: \033[1;32mon\033[0m"
+      
+      setopt extended_glob
+
+      cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/jam"
+      playlist_file="$cache_dir/playlist-tracks"
+      mkdir -p "$cache_dir"
+
+      # Prompt for number of tracks
+      count="$2"
+      if [[ ! "$count" == <-> ]]; then
+          echo "⚠️  Usage: ${BLUE}jam${RESET} add <number-of-tracks>"
+          return
+      fi
+
+      # Prompt user to select a subdirectory within $music_dir
+      echo "📁 Scanning subdirectories in: $music_dir"
+      subdir=$(find "$music_dir" -mindepth 1 -maxdepth 1 -type d | fzf --prompt="🎶 Select a folder: ")
+
+      if [[ -z "$subdir" ]]; then
+          echo "❌ No folder selected. Aborting."
+          return
+      fi
+
+      echo "🎯 Selected: $subdir"
+      echo "🎲 Picking $count random tracks..."
+
+      # Find and shuffle tracks
+      selected_tracks=()
+      while IFS= read -r track; do
+          selected_tracks+=("$track")
+      done < <(find "$subdir" -type f \( -iname "*.mp3" -o -iname "*.flac" -o -iname "*.wav" \) | shuf | head -n "$count")
+
+      if [[ ${#selected_tracks[@]} -eq 0 ]]; then
+          echo "🙅 No tracks found in selected folder."
+          return
+      fi
+
+      # Ensure MOC is running
+      if ! pgrep -x mocp >/dev/null; then
+          mocp -S
+          sleep 0.5
+      fi
+
+      # Add to MOC and cache
+      for track in "${selected_tracks[@]}"; do
+          mocp -a "$track"
+          echo "$track" >> "$playlist_file"
+          echo "➕ Added: $(basename "$track")"
+      done
+
+      echo "✅ Added ${#selected_tracks[@]} tracks from: $(basename "$subdir")"
+
+      # Start playback
+      mocp -p
+      echo " ⏯️  Playback started."
+      ;;
+
+    clear)
+      if mocp -Q %state &>/dev/null; then
+        mocp -c
+        echo "🗑️  Cleared the ${BLUE}jam${RESET} playlist. Blank slate, ready to create. 💖"
+      else
+        echo "⚠️  MOC server isn't running. Nothing to clear."
+      fi
+  
+        rm -f "$playlist_file"
+      ;;
+      
+    load)
+      JAM_CACHE="$HOME/.cache/jam"
+      CACHE_FILE="$JAM_CACHE/playlist-tracks"
+
+      if [[ -f "$CACHE_FILE" ]]; then
+        playlist=()
+        while IFS= read -r track; do
+          playlist+=("$track")
+        done < "$CACHE_FILE"
+
+        echo "✅ Loaded ${#playlist[@]} tracks into playlist."
+
+        # Now push to MOC
+        for track in "${playlist[@]}"; do
+          mocp --append "$track"
+        done
+
+      else
+        echo "⚠️ No cached playlist found at: $CACHE_FILE"
+      fi
+      ;;
+
+    save)
+      setopt extended_glob
+
+      cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/jam"
+      playlist_file="$cache_dir/playlist-tracks"
+      original_file="$cache_dir/playlist-original"
+
+      if [[ ! -f "$playlist_file" ]]; then
+          echo "❌ No playlist to save. Run 'jam random' or 'jam reset' first."
+          return
+      fi
+
+      output_name="$2"
+      use_original="$3"
+
+      # If no filename is provided, generate one with a timestamp
+      if [[ -z "$output_name" || "$output_name" == "--original" ]]; then
+          timestamp=$(date +%Y%m%d-%H%M)
+          output_name="jam-playlist-$timestamp.m3u"
+
+          # Shift --original into the third position if it was second
+          [[ "$output_name" == "--original" ]] && use_original="--original"
+      fi
+
+      # Ensure .m3u extension
+      [[ "$output_name" != *.m3u ]] && output_name="${output_name}.m3u"
+
+      # Determine source file
+      if [[ "$use_original" == "--original" ]]; then
+          if [[ ! -f "$original_file" ]]; then
+              echo "❌ Original playlist not found. Run 'jam random' to generate it."
+              return
+          fi
+          source_file="$original_file"
+          echo " 💾 Saving original playlist..."
+      else
+          source_file="$playlist_file"
+          echo " 💾 Saving current playlist..."
+      fi
+
+      # Save to music directory
+      output_path="${music_dir}/${output_name}"
+      cp "$source_file" "$output_path"
+
+      echo "✅ Playlist saved to: \033[32m$output_path\033[0m"
+      ;;      
+   
+    shutdown)
+      setopt extended_glob
+
+      cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/jam"
+      playlist_file="$cache_dir/playlist-tracks"
+      original_file="$cache_dir/playlist-original"
+      music_dir="${JAM_MUSIC_DIR:-$HOME/Music}"
+
+      # Ask user if they want to save the playlist
+      if [[ -f "$playlist_file" ]]; then
+          while true; do
+              echo -n "💾 Do you want to save the current playlist before shutdown? (y/n): "
+              read -r answer
+              case "$answer" in
+                  y)
+                      timestamp=$(date +%Y%m%d-%H%M)
+                      output_name="jam-session-$timestamp.m3u"
+                      cp "$playlist_file" "$music_dir/$output_name"
+                      echo "✅ Playlist saved as: $output_name"
+                      break
+                      ;;
+                  n)
+                      echo "⚠️  Playlist not saved."
+                      break 
+                     ;;
+                *)
+                      echo "❓ Please enter 'y' or 'n'."
+                      ;;
+                  esac
+              done
+          else
+              echo "⚠️  No playlist to save."
+          fi
+
+          # Clear MOC playlist
+          mocp -c
+
+          # Disable loop mode (repeat)
+          mocp -u repeat
+          echo -e "🔁 Loop mode status: \033[1;31moff\033[0m"
+
+          # Remove cache files
+          rm -f "$playlist_file" "$original_file"
+          echo "🗑️  Cleared jam cache."
+
+          echo "🧹 Cleared MOC playlist. Jam session ended."
+          echo "✅ Jam shutdown complete. MOC is still running. 🎶"
+          ;;
+                     
+    random)
+      shift  # Remove "random" so $1 becomes the number (if any)
+
+      if [[ "$1" == <-> ]]; then
+          count="$1"
+      else
+          count=1
+      fi
+
+      tmpfile=$(mktemp)
+      find "$music_dir" -type f \( -iname "*.mp3" -o -iname "*.flac" -o -iname "*.wav" \) | shuf -n "$count" > "$tmpfile"
+
+      if [[ ! -s "$tmpfile" ]]; then
+          echo "🙅 No tracks found to shuffle into the mix."
+          rm -f "$tmpfile"
+          return
+      fi
+
+      if ! pgrep -x mocp >/dev/null; then
+          mocp -S
+          echo "🎧 MOC server started. Rolling the dice..."
+      fi
+
+      i=0
+      while IFS= read -r track; do
+          mocp -a "$track"
+          echo "$track" >> "$playlist_file"
+          echo "✅ Added to playlist: ${CYAN}$(basename "$track")${RESET}"
+          if [[ "$i" -eq 0 ]]; then
+              state=$(mocp -Q %state 2>/dev/null)
+              if [[ "$state" != "PLAY" && "$state" != "PAUSE" ]]; then
+                  mocp -p
+                  echo "🎲 First track queued and playing: ${CYAN}$(basename "$track")${RESET}"
+              fi
+          else
+              echo "🎲 Randomly added to queue: ${CYAN}$(basename "$track")${RESET}"
+          fi
+          i=$((i + 1))
+      done < "$tmpfile"
+
+      rm -f "$tmpfile"
+      ;;
+
+    print)
+      if [[ ! -s "$playlist_file" ]]; then
+          echo "📭 No tracks in the cache playlist."
+          return
+      fi
+
+      echo "📝 Cached Playlist:"
+      echo "-------------------"
+
+      i=1
+      while IFS= read -r track; do
+          echo "$i. ${CYAN}$(basename "$track")${RESET}"
+          ((i++))
+      done < "$playlist_file"
+
+      echo "-------------------"
+      echo "🎧 Total: $((i - 1)) tracks"
+      ;;
+      
+    sync)
+      quiet=false
+      [[ "$2" == "--quiet" ]] && quiet=true
+
+      # Set default values
+      default_loop="on"
+      default_shuffle="off"
+
+      # Ensure cache directory exists
+      mkdir -p "$JAM_CACHE"
+
+      # Write defaults to cache
+      echo "$default_loop" > "$JAM_CACHE/loop-status"
+      echo "$default_shuffle" > "$JAM_CACHE/shuffle-status"
+
+      # Apply to MOC if running
+      if pgrep -x mocp >/dev/null; then
+        [[ "$default_loop" == "on" ]] && mocp -o repeat || mocp -u repeat
+        [[ "$default_shuffle" == "on" ]] && mocp -o shuffle || mocp -u shuffle
+      fi
+
+      # Optional output
+      if ! $quiet; then
+        echo "🔄 Resetting session to default state..."
+        echo -e "✅ Session reset: loop=$( [[ $default_loop == "on" ]] && echo "${GREEN}on${RESET}" || echo "${RED}off${RESET}" ), shuffle=$( [[ $default_shuffle == "on" ]] && echo "${GREEN}on${RESET}" || echo "${RED}off${RESET}" )"
+      fi
+      ;;
+
+    doctor)
+      echo "🩺 Running ${BLUE}jam${RESET} environment check..."
+
+      # Check for mocp
+      if command -v mocp >/dev/null; then
+          echo "✅ mocp is installed."
+      else
+          echo "❌ mocp is not installed."
+      fi
+
+      # Check for fzf
+      if command -v fzf >/dev/null; then
+          echo "✅ fzf is installed."
+      else
+          echo "❌ fzf is not installed."
+      fi
+
+      # Check JAM_MUSIC_DIR
+      if [[ -n "$music_dir" && -d "$music_dir" ]]; then
+          echo "✅ JAM_MUSIC_DIR is set to: $music_dir"
+      else
+          echo "❌ JAM_MUSIC_DIR is not set or invalid."
+      fi
+
+      # Check playlist file
+      playlist_file="${XDG_CACHE_HOME:-$HOME/.cache}/jam/playlist-tracks"
+      if [[ -w "$playlist_file" || ! -e "$playlist_file" ]]; then
+          echo "✅ Playlist file is writable: $playlist_file"
+      else
+          echo "❌ Playlist file is not writable: $playlist_file"
+      fi
+
+      # Check if MOC server is running
+      if pgrep -x mocp >/dev/null; then
+          pid=$(pgrep -x mocp | head -n 1)
+          echo "✅ MOC server is running (PID: $pid)."
+      else
+          echo "❌ MOC server is not running."
+      fi
+
+      # Final tip
+      echo "${YELLOW}💡 Tip:${RESET} Run \`alias | grep -F '[${BLUE}jam${RESET}]'\` to confirm your ${BLUE}jam${RESET} aliases are loaded."   
+      ;; 
+ 
+    clean)
+      JAM_CACHE="${JAM_CACHE:-$HOME/.cache/jam}"
+
+      # Truncate cache files safely
+      : > "$JAM_CACHE/playlist-tracks"
+      : > "$JAM_CACHE/playlist-current"
+      : > "$JAM_CACHE/loop-status"
+      : > "$JAM_CACHE/shuffle-status"
+      : > "$JAM_CACHE/stop-state"
+
+      # Restore execution permissions if needed
+      chmod 755 "$JAM_CACHE"/* 2>/dev/null
+
+      # Confirmation echo
+      echo "✅ Deep clean complete. Cache sanitized, permissions restored. ✅"
+      ;;
+  
+    help)
+      echo "🎵 ${BLUE}Jam${RESET} – Terminal Music Playlist Launcher"
+      echo
+      echo "Usage: jam [command]"
+      echo
+
+      echo " 🎬 Session Management"
+      echo "  jam on          (jon)     Start MOC server"
+      echo "  jam off         (jff)     Stop MOC server"
+      echo "  jam stop        (jst)     Stop/start playlist cache rebuild toggle"
+      echo "  jam status      (js)      Show loop/shuffle status and now playing"
+      echo "  jam monitor     (jm)      Show live track updates and loop/shuffle status"
+      echo
+
+      echo " 🎵 Playback Control"
+      echo "  jam play        (jp)      Playback from beginning of current playlist"
+      echo "  jam grace       {jg}      Toggle to stop/restart playback from beginning of current track."
+      echo "  jam quit        (jqt)     Stop playback and keep playlist"
+      echo "  jam pause       (jz)      Pause or resume playback toggle"
+      echo "  jam next        (jn)      Skip to the next track"
+      echo "  jam prev        (jb)      Skip to the previous track"
+      echo "  jam rewind      (jrw)     Rewind current track to the beginning"
+      echo "  jam loop        (jl)      Toggle loop mode"
+      echo "  jam shuffle     (jf)      Toggle shuffle mode"
+      echo
+
+      echo " 🔊 Volume Control"
+      echo "  jam volume up   (jvu)     Increase volume"
+      echo "  jam volume down (jvd)     Decrease volume"
+      echo
+
+      echo " 📁 Cache & Library Ops"
+      echo "  jam add         (ja)      Add tracks via fzf from selected directory"
+      echo "  jam clear       (jcl)     Clear the playlist and stop playback"
+      echo "  jam load        (jld)     Load the playlist-tracks cache."
+      echo "  jam save        (jsv)     Save current cache as .m3u"
+      echo "  jam shutdown    (jsd)     Graceful shutdown sequence"
+      echo "  jam random      (jr)      Queue a surprise track"
+      echo "  jam print       (jpt)     Display playlist cache"
+      echo
+
+      echo " 🩺 Diagnostics & Docs"
+      echo "  jam sync        (jsy)     Sync default state across all blocks"
+      echo "  jam doctor      (jd)      Show diagnostics output"
+      echo "  jam clean       (jdc)     Clean cache and restore priveledges"
+      echo "  jam help        (jh)      Show this help message"
+      echo
+      echo "🎛  jam  — Launch fzf and queue tracks interactively"
+      ;;
+
+    *)
+      if ! mocp -Q %state > /dev/null 2>&1; then
+        mocp -S
+        echo "🎧 MOC server started. Time to curate the vibes."
+      fi
+
+      IFS=$'\n' tracks=($(find "$music_dir" -type f \( -iname "*.mp3" -o -iname "*.flac" -o -iname "*.wav" -o -iname "*.m4a" \) | fzf --multi))
+
+
+      if (( ${#tracks[@]} )); then
+        for track in "${tracks[@]}"; do
+          if [[ -f "$track" ]]; then
+            mocp -a "$track"
+            echo "$track" >> "$playlist_file"
+          else
+            echo "⚠️  Skipped non-file: $track"
+          fi
+        done
+        mocp -p
+        echo "🎶 Playlist queued. Turn the crank."
+      else
+        echo "🙅 No tracks selected."
+      fi
+      ;;
+  esac
+} 
+
+if [[ "${(%):-%N}" == "$0" ]]; then
+  jam "$@"
+fi
+
+
+
+ 
+
+
+

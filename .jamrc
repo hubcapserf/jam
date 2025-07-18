@@ -1,0 +1,50 @@
+# Customize your jam session environment 🎧
+session_time=$(date +"%I:%M %p")
+startup_message="🎸 Welcome back, \033[1;34mblues\033[0m traveler. $session_time 🎶"
+
+# 🔊 Set your music directory
+export JAM_MUSIC_DIR="your music directory"
+
+# 🎯 Optional aliases for quicker access
+
+# 🎬 Session Management
+alias jon='jam on'
+alias jff='jam off'
+alias jst='jam stop'
+alias js='jam status'
+alias jm='jam monitor'
+
+# 🎵 Playback Control
+alias jp='jam play'
+alias jg='jam grace'
+alias jqt='jam quit'
+alias jz='jam pause'
+alias jn='jam next'
+alias jb='jam prev'
+alias jrw='jam rewind'
+alias jl='jam loop'
+alias jf='jam shuffle'
+
+# 🔊 Volume Control
+alias jvu='jam volume up'
+alias jvd='jam volume down'
+
+# 📁 Cache & Library Ops
+alias ja='jam add'
+alias jcl='jam clear'
+alias jld='jam load'
+alias jsv='jam save'
+alias jsd='jam shutdown'
+alias jr='jam random'
+alias jpt='jam print'
+
+# 🩺 Diagnostics & Docs
+alias jd='jam doctor'
+alias jdc='jam clean'
+alias jsy='jam sync'
+alias jh='jam help'
+
+# 🛠 Optional environment flags for future use
+# export JAM_VERBOSE=true
+# export JAM_LOOP_DEFAULT=on
+# echo '[.jamrc loaded]'

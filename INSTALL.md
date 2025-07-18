@@ -90,68 +90,8 @@ Jam is a lightweight terminal music launcher powered by `fzf`, designed for quic
 
 ## 🎛 Available Commands
 
-```bash
-jam
-```
-Launches the interactive `fzf` interface to browse your music directory.
+1. jam help (jh) prints a list of all available commands.
 
-```bash
-jam status
-```
-Shows loop/shuffle status, playlist count, and currently playing track.
-
-```bash
-jam clear
-```
-Clears the playlist and stops playback.
-
-```bash
-jam play
-```
-Starts playback of the current playlist.
-
-```bash
-jam stop
-```
-Stops playback without clearing the playlist.
-
-```bash
-jam pause
-```
-Toggles pause/resume on the current track.
-
-```bash
-jam next
-```
-Skips to the next track.
-
-```bash
-jam prev
-```
-Rewinds to the previous track.
-
-```bash
-jam loop
-```
-Toggles loop mode on/off.
-
-```bash
-jam shuffle
-```
-Toggles shuffle mode on/off.
-
-```bash
-jam random
-```
-Adds a random track to the playlist and starts playback if idle.
-
-```bash
-jam save
-```
-Saves the current playlist to a timestamped `.m3u` file in your music directory.
-
-```bash
-jam help
 ```
 Displays a summary of all available commands.
 
