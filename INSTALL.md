@@ -14,9 +14,9 @@ Jam is a lightweight terminal music launcher powered by `fzf`, designed for quic
    ```
 
 2. **Set your music directory**:  
-   Open `jam.zsh` and update the first line to point to your music folder:
+   Open `jam` and update the first line to point to your music folder:
    ```bash
-   nano ~/projects/jam/jam.zsh
+   nano ~/projects/jam/jam
    ```
    Change:
    ```zsh
@@ -24,16 +24,16 @@ Jam is a lightweight terminal music launcher powered by `fzf`, designed for quic
    ```
    to match your actual music directory.
 
-3. **Source `jam.zsh` in your shell config**:
+3. **Source `jam` in your shell config**:
 
    - For `zsh` users:
      ```bash
-     echo 'source ~/projects/jam/jam.zsh' >> ~/.zshrc
+     echo 'source ~/projects/jam/jam' >> ~/.zshrc
      ```
 
    - For `bash` users:
      ```bash
-     echo 'source ~/projects/jam/jam.zsh' >> ~/.bashrc
+     echo 'source ~/projects/jam/jam' >> ~/.bashrc
      ```
 
 4. **Reload your shell**:
@@ -45,21 +45,21 @@ Jam is a lightweight terminal music launcher powered by `fzf`, designed for quic
 
 ### Option 2: Manual Copy
 
-1. **Copy `jam.zsh` to a standard location**:
+1. **Copy `jam.` to a standard location**:
    ```bash
    mkdir -p ~/.jam
-   cp jam.zsh ~/.jam/jam.zsh
+   cp jam ~/.jam/jam
    ```
 
 2. **Edit the file to set your music directory**:
    ```bash
-   nano ~/.jam/jam.zsh
+   nano ~/.jam/jam
    ```
    Update the `MUSIC_DIR` variable as needed.
 
 3. **Source it in your shell config**:
    ```bash
-   echo 'source ~/.jam/jam.zsh' >> ~/.zshrc   # or ~/.bashrc
+   echo 'source ~/.jam/jam' >> ~/.zshrc   # or ~/.bashrc
    ```
 
 4. **Reload your shell**:
@@ -90,12 +90,13 @@ Jam is a lightweight terminal music launcher powered by `fzf`, designed for quic
 
 ## 🎛 Available Commands
 
-1. jam help (jh) prints a list of all available commands.
+1. jam help (jh) prints a list of all available commands with a summary of the commands.
+
 
 ```
-Displays a summary of all available commands.
 
 ---
+## .jamrc has configuration for aliases.
 
 ## 🛠 Configuration
 
@@ -104,7 +105,7 @@ Displays a summary of all available commands.
   - `PLAYER_CMD` — the command used to play music (e.g., `mocp`, `mpv`)
   - Keybindings and playlist behavior
 
-All of this lives inside `jam.zsh`.
+All of this lives inside `jam`.
 
 ---
 
